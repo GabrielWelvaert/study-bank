@@ -81,6 +81,12 @@ def check_duplicate_topic(topic_map, name, topic_id=None):
         for existing_id, existing_name in topic_map.items()
     )
 
+# pop up for viewing a random question 
+@st.dialog("Random Question", width="medium")
+def random_question():
+    st.html("""<style>[data-testid="stDialog"] {    background: #262730 !important;}</style>""")
+    st.subheader("Random Question (TODO). Should allow for specifying topic too.", anchor=False)
+
 # pop up for managing topics
 @st.dialog("Manage Topics")
 def manage_topics(topic_map):
@@ -196,9 +202,10 @@ def main():
                 st.form_submit_button("Delete", on_click=confirm_delete, width="content")
 
     # Questions section
-    with st.container(gap="xxsmall"):
-        st.subheader(f"Questions ({len(questions)} total)", anchor=False)
-        search = st.text_input("Search",placeholder="Search questions or topics...", autocomplete="off")
+    with st.container(horizontal=True, vertical_alignment="center", height=48, border=False):
+        st.subheader(f"Questions ({len(questions)} total)", anchor=False, width="content")
+        st.button("View Random Question", on_click=random_question) 
+    search = st.text_input("Search",placeholder="Search questions or topics...", autocomplete="off")
 
     if search:
         search = search.lower()

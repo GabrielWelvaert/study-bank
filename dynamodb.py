@@ -1,5 +1,8 @@
 import boto3, uuid
 
+# Authorization provided through a named local AWS credential profile
+# which uses access keys for an IAM user with the required permissions.
+# (created via `aws configure --profile study-bank`)
 session = boto3.Session(
     profile_name="study-bank",
     region_name="us-east-1",
@@ -20,7 +23,6 @@ def get_questions():
         items.extend(response["Items"])
     print(f"Fetched {len(items)} question(s)")
     return items
-
 
 def create_question(question, answer_url, topic):
     table.put_item(

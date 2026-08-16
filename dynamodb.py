@@ -78,19 +78,6 @@ def delete_question(question_id):
     print(f"Deleted question {question_id}")
 
 # topic functions:
-
-# returns true if this topic name already exists (case insensitive match)
-def check_duplicate_topic(name, topic_id=None):
-    response = table.query(KeyConditionExpression=Key("TYPE").eq("TOPIC"))
-    normalized_name = name.casefold()
-    if any(
-        topic["name"].casefold() == normalized_name
-        and (topic_id is None or topic["UUID"] != topic_id)
-        for topic in response["Items"]
-    ):
-        return True
-    return False
-
 def create_topic(name):
     topic_id = generate_uuid()
 

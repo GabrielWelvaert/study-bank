@@ -1,5 +1,5 @@
 import streamlit as st
-from dynamodb import check_topic_has_references, check_duplicate_topic, get_entries, create_question, update_question, delete_question, create_topic, update_topic, delete_topic
+from dynamodb import check_topic_has_references, get_entries, create_question, update_question, delete_question, create_topic, update_topic, delete_topic
 
 RED = "#FF4B4B"
 GREEN = "#198754"
@@ -11,9 +11,9 @@ def toast(message, status = None):
     st.session_state.message = message
 
 # result of get_entries is cached and should be cleared after CUD operations so UI has updated data
-def clear_get_entries_cache(type):
-    get_entries.clear(type)
-    print(f"{str.lower(type)} cache cleared")
+def clear_get_entries_cache(entry_type):
+    get_entries.clear(entry_type)
+    print(f"{entry_type.lower()} cache cleared")
 
 # clear question data from state so form does not populate on rerun
 def clear_fields():
@@ -34,7 +34,7 @@ def load_question_to_form(question):
     st.session_state.editing_id = question["UUID"]
     st.session_state.form_question = question["question"]
     st.session_state.form_reference_url = question.get("reference_url", "")
-    st.session_state.form_topic_id = question.get("topic_id", "")
+    st.session_state.form_topic_id = question.get("topic_id")
 
 def save_question():
     question = st.session_state.form_question.strip()
@@ -85,10 +85,11 @@ def check_duplicate_topic(topic_map, name, topic_id=None):
 @st.dialog("Manage Topics")
 def manage_topics(topic_map):
     st.subheader("Add Topic", anchor=False)
-
+    new_topic_name = st.text_input("New Topic", autocomplete="off").strip()
     if st.button("Add", type="primary"):
-        new_topic_name = st.text_input("New Topic", autocomplete="off").strip()
-        if check_duplicate_topic(topic_map, new_topic_name):
+        if not new_topic_name:
+            toast("Topic name is required.", "error")
+        elif check_duplicate_topic(topic_map, new_topic_name):
             toast(f"Topic '{new_topic_name}' already exists.", "error")
         else:
             create_topic(new_topic_name)
@@ -99,7 +100,7 @@ def manage_topics(topic_map):
         return
 
     st.divider()
-    st.subheader("Existing Topics", anchor=False)
+    st.subheader(f"Existing Topics ({len(topic_map)} total)", anchor=False)
 
     # topic selected in the dropdown of the manage topics window
     topic_id = st.selectbox(
@@ -108,10 +109,11 @@ def manage_topics(topic_map):
         format_func=lambda id: topic_map[id],
     )
 
-    name = st.text_input("Name",value=topic_map[topic_id])
+    name = st.text_input("Name",value=topic_map[topic_id],  autocomplete="off")
 
     with st.container(horizontal=True):
         if st.button("Update"):
+            name = name.strip()
             if check_duplicate_topic(topic_map, name, topic_id):
                 toast(f"Topic {name} already exists.", "error")
             else:
@@ -186,7 +188,6 @@ def main():
             key="form_topic_id", index=None
         )
 
-        save_col, delete_col = st.columns(2)
         with st.container(horizontal=True):
             st.form_submit_button("Save", on_click=save_question, type="primary", width="content",disabled=not topics,)
             st.form_submit_button("Clear Fields", on_click=clear_fields, width="content")
@@ -196,7 +197,7 @@ def main():
 
     # Questions section
     with st.container(gap="xxsmall"):
-        st.subheader("Questions", anchor=False)
+        st.subheader(f"Questions ({len(questions)} total)", anchor=False)
         search = st.text_input("Search",placeholder="Search questions or topics...", autocomplete="off")
 
     if search:
@@ -205,7 +206,7 @@ def main():
             question
             for question in questions
             if search in question["question"].lower()
-            or search in question.get("topic_id", "").lower()
+            or search in topic_map.get(question.get("topic_id"), "").lower()
         ]
 
     questions.sort(key=lambda question: question["question"].lower())

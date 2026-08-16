@@ -1,6 +1,14 @@
 import streamlit as st
 from dynamodb import get_questions, create_question, update_question, delete_question
 
+RED = "#FF4B4B"
+GREEN = "#198754"
+
+# result of get_questions() is cached and should be cleared after CUD operations so UI has updated data
+def clear_question_cache():
+    print("Cache cleared")
+    get_questions.clear()
+
 # clear question data from state so form does not populate on rerun
 def clear_fields():
     st.session_state.form_question = ""
@@ -13,7 +21,7 @@ def reset_form():
     clear_fields()
 
 # place question data into session variable so it will populate form on rerun
-def load_question(question):
+def load_question_to_form(question):
     st.session_state.editing_id = question["question_id"]
     st.session_state.form_question = question["question"]
     st.session_state.form_answer_url = question.get("answer_url", "")
@@ -35,7 +43,7 @@ def save_question():
     else:
         create_question(question,answer_url,topic)
         st.session_state.message = "Question added."
-
+    clear_question_cache()
     reset_form()
 
 @st.dialog("Delete Question")
@@ -50,6 +58,7 @@ def confirm_delete():
             delete_question(st.session_state.editing_id)
             st.session_state.message = "Question deleted."
             reset_form()
+            clear_question_cache()
             st.rerun()
 
 def main():
@@ -57,27 +66,17 @@ def main():
     st.session_state.setdefault("editing_id", None)
 
     # toast doesn't accept color argument, so we need a custom css override
-    toast_color = "#198754"
-    if st.session_state.get("toast_status") == "error":
-        toast_color = "#dc3545"
-    st.html(f"""
-    <style>
-    [data-testid="stToast"] {{
-        background-color: {toast_color} !important;
-        color: white !important;
-    }}
-    </style>
-    """)
+    toast_color = GREEN
+    if (toast_status := st.session_state.pop("toast_status", None)) == "error":
+        toast_color = RED
+    st.html(f"""<style>[data-testid="stToast"] {{background-color: {toast_color} !important;color: white !important;}}</style>""")
 
     st.set_page_config(page_title="Study Bank",page_icon="📚")
     st.title("Study Bank Question Modifier", anchor=False)
 
+    # session_state.message is displayed as toast message
     if message := st.session_state.pop("message", None):
-        st.toast(message)
-
-    if error := st.session_state.pop("error", None):
-        st.error(error)
-
+        st.toast(message) # color for this defined in toast_color
 
     # Add / Edit Header
     with st.container(horizontal=True, vertical_alignment="center", height=72, border=False):
@@ -91,7 +90,10 @@ def main():
 
     # the actual form
     with st.form("question_form", enter_to_submit=False):
-        st.text_area("Question", key="form_question", height=70)
+        # question label will display UUID of question in edit mode
+        question_label = f'({st.session_state.editing_id})' if st.session_state.editing_id is not None else ''
+
+        st.text_area(f"Question {question_label}", key="form_question", height=70)
         st.text_input("Reference URL", key="form_answer_url", autocomplete="off")
         st.text_input("Topic", key="form_topic", autocomplete="off")
 
@@ -108,12 +110,11 @@ def main():
         st.subheader("Questions", anchor=False)
         search = st.text_input("Search",placeholder="Search questions or topics...", autocomplete="off")
 
-    # todo only fetch questions on initialization otherwise it will full table scan on every button press
+    # should store questions in @st.cache_data, they only need to be fetched at first load since only one user ever
     questions = get_questions()
 
     if search:
         search = search.lower()
-
         questions = [
             question
             for question in questions
@@ -123,11 +124,12 @@ def main():
 
     questions.sort(key=lambda question: question["question"].lower())
 
+    # question button for each question
     for question in questions:
         st.button(
             question["question"],
             key=f"select_{question['question_id']}",
-            on_click=load_question,
+            on_click=load_question_to_form,
             args=(question,),
             use_container_width=True,
         )

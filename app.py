@@ -110,7 +110,7 @@ def main():
         st.subheader("Questions", anchor=False)
         search = st.text_input("Search",placeholder="Search questions or topics...", autocomplete="off")
 
-    # should store questions in @st.cache_data, they only need to be fetched at first load since only one user ever
+    # the result of this is cached
     questions = get_questions()
 
     if search:

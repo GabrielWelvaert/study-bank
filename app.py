@@ -85,13 +85,13 @@ def check_duplicate_topic(topic_map, name, topic_id=None):
 @st.dialog("Manage Topics")
 def manage_topics(topic_map):
     st.subheader("Add Topic", anchor=False)
-    new_topic = st.text_input("New Topic", autocomplete="off").strip()
 
     if st.button("Add", type="primary"):
-        if check_duplicate_topic(topic_map, new_topic):
-            toast(f"Topic '{new_topic}' already exists.", "error")
+        new_topic_name = st.text_input("New Topic", autocomplete="off").strip()
+        if check_duplicate_topic(topic_map, new_topic_name):
+            toast(f"Topic '{new_topic_name}' already exists.", "error")
         else:
-            create_topic(new_topic)
+            create_topic(new_topic_name)
             clear_get_entries_cache("TOPIC")
         st.rerun()
 
@@ -101,6 +101,7 @@ def manage_topics(topic_map):
     st.divider()
     st.subheader("Existing Topics", anchor=False)
 
+    # topic selected in the dropdown of the manage topics window
     topic_id = st.selectbox(
         "Topic",
         options=list(topic_map.keys()),
@@ -225,5 +226,6 @@ def main():
             use_container_width=True,
         )
 
+# python -m streamlit run app.py
 if __name__ == "__main__":
     main()

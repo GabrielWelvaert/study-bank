@@ -1,20 +1,20 @@
 # DynamoDB Schema: study-bank
 
-| Key | Purpose | Type |
+| Key | Name | Type |
 |---|---|---|
-| Partition key | Type | String |
+| Partition key | TYPE | String |
 | Sort key | UUID | String |
 
-## Question
+## Question Example
 ```json
   "PK": "QUESTION",
   "SK": "550e8400-e29b-41d4-a716-446655440000",
   "question": "What is linearizability?",
-  "reference_url": "...",
+  "reference_url": "https://www.wikipedia.org/",
   "topic": "6c299eca-860e-4654-8194-fc12e045b696"
 ```
 
-## Topic
+## Topic Example
 ```json
     "PK": "TOPIC",
     "SK": "6c299eca-860e-4654-8194-fc12e045b696",

@@ -102,13 +102,13 @@ with st.container(horizontal=True, vertical_alignment="center", height=72, borde
 # the actual form
 with st.form("question_form", enter_to_submit=False):
     st.text_area("Question", key="form_question", height=70)
-    st.text_input("Reference URL", key="form_answer_url")
-    st.text_input("Topic", key="form_topic")
+    st.text_input("Reference URL", key="form_answer_url", autocomplete="off")
+    st.text_input("Topic", key="form_topic", autocomplete="off")
 
     save_col, delete_col = st.columns(2)
     with st.container(horizontal=True):
         st.form_submit_button("Save", on_click=save_question, type="primary", width="content")
-        st.form_submit_button("Clear Fields", on_click=save_question, width="content")
+        st.form_submit_button("Clear Fields", on_click=clear_fields, width="content")
 
         if st.session_state.editing_id:
             st.form_submit_button("Delete", on_click=confirm_delete, width="content")
@@ -116,8 +116,9 @@ with st.form("question_form", enter_to_submit=False):
 # Questions section
 with st.container(gap="xxsmall"):
     st.subheader("Questions", anchor=False)
-    search = st.text_input("",placeholder="Search questions or topics...")
+    search = st.text_input("Search",placeholder="Search questions or topics...", autocomplete="off")
 
+# todo only fetch questions on initialization otherwise it will full table scan on every button press
 questions = get_questions()
 
 if search:

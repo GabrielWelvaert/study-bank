@@ -10,7 +10,7 @@
   "PK": "QUESTION",
   "SK": "550e8400-e29b-41d4-a716-446655440000",
   "question": "What is linearizability?",
-  "reference_url": "https://www.wikipedia.org/",
+  "reference_url": "https://stackoverflow.com/questions",
   "topic": "6c299eca-860e-4654-8194-fc12e045b696"
 ```
 

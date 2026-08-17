@@ -191,11 +191,12 @@ def main():
             "Topic",
             options=list(topic_map.keys()),
             format_func=lambda id: topic_map[id],
-            key="form_topic_id", index=None
+            key="form_topic_id", index=None,
+            help="Create a topic with the Manage Topics button" if not topics else None
         )
 
         with st.container(horizontal=True):
-            st.form_submit_button("Save", on_click=save_question, type="primary", width="content",disabled=not topics,)
+            st.form_submit_button("Save", on_click=save_question, type="primary", width="content",disabled=not topics,help="Create a topic first. Questions require a topic." if not topics else None)
             st.form_submit_button("Clear Fields", on_click=clear_fields, width="content")
 
             if st.session_state.editing_id:
@@ -204,7 +205,7 @@ def main():
     # Questions section
     with st.container(horizontal=True, vertical_alignment="center", height=48, border=False):
         st.subheader(f"Questions ({len(questions)} total)", anchor=False, width="content")
-        st.button("View Random Question", on_click=random_question) 
+        st.button("View Random Question", on_click=random_question,disabled=(len(questions)==0),help="No questions found." if (len(questions)==0) else None) 
     search = st.text_input("Search",placeholder="Search questions or topics...", autocomplete="off")
 
     if search:
@@ -218,7 +219,7 @@ def main():
 
     questions.sort(key=lambda question: question["question"].lower())
 
-    # useful for debugging
+    # useful for debugging, shows each question and its topic name
     # for question in questions:
     #     topic_name = topic_map.get(question.get("topic_id"), "Unknown Topic")
     #     print(f'{question["question"]} | {topic_name}')

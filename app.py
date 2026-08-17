@@ -1,4 +1,5 @@
 import streamlit as st
+import random
 from dynamodb import check_topic_has_references, get_entries, create_question, update_question, delete_question, create_topic, update_topic, delete_topic
 
 RED = "#FF4B4B"
@@ -82,10 +83,29 @@ def check_duplicate_topic(topic_map, name, topic_id=None):
     )
 
 # pop up for viewing a random question 
-@st.dialog("Random Question", width="medium")
-def random_question():
-    st.html("""<style>[data-testid="stDialog"] {    background: #262730 !important;}</style>""")
-    st.subheader("Random Question (TODO). Should allow for specifying topic too.", anchor=False)
+@st.dialog("Press Space or click the button for a random question", width="medium")
+def random_question(questions, topic_map):
+    # custom CSS to hide everything except the question
+    st.html("""<style>[data-testid="stDialog"] { background: #262730 !important;}</style>""")
+
+    selected_topic = st.selectbox("Topic",options=[None] + list(topic_map.keys()),format_func=lambda id: "Any" if id is None else topic_map[id],index=0)
+
+    # fetch a new question with respect to topic choice
+    if st.button("Random Question", shortcut="Space"):
+        current_id = st.session_state.get("random_question_id")
+        matching_questions = questions if selected_topic is None else [q for q in questions if q["topic_id"] == selected_topic]
+        matching_questions = [q for q in matching_questions if q["UUID"] != current_id]
+        if matching_questions:
+            st.session_state.random_question_id = random.choice(matching_questions)["UUID"]
+
+    # dont display question until user has specified topic selection
+    if "random_question_id" not in st.session_state:
+        return
+
+    # displaying question
+    question = next(q for q in questions if q["UUID"] == st.session_state.random_question_id)
+    st.subheader(question['question'], anchor=False)
+    st.markdown(f"### Refer: [{question['reference_url']}]({question['reference_url']})")
 
 # pop up for managing topics
 @st.dialog("Manage Topics")
@@ -141,14 +161,11 @@ def manage_topics(topic_map):
             st.rerun()
 
 def main():
-    # fetch data from dynamoDB
-    questions = get_entries("QUESTION")
+    # fetch data from dynamoDB, returned as list which is cached by st
+    questions = get_entries("QUESTION") 
     topics = get_entries("TOPIC")
     # map of topic ids to names
-    topic_map = {
-        topic["UUID"]: topic["name"]
-        for topic in topics
-    }
+    topic_map = {topic["UUID"]: topic["name"] for topic in topics}
 
     # we're either in edit mode or add mode. if we have an editing_id, we know we're in edit mode
     st.session_state.setdefault("editing_id", None)
@@ -205,7 +222,7 @@ def main():
     # Questions section
     with st.container(horizontal=True, vertical_alignment="center", height=48, border=False):
         st.subheader(f"Questions ({len(questions)} total)", anchor=False, width="content")
-        st.button("View Random Question", on_click=random_question,disabled=(len(questions)==0),help="No questions found." if (len(questions)==0) else None) 
+        st.button("View Random Question", on_click=random_question,args=(questions, topic_map),disabled=(len(questions)==0),help="No questions found." if (len(questions)==0) else None) 
     search = st.text_input("Search",placeholder="Search questions or topics...", autocomplete="off")
 
     if search:

@@ -1,6 +1,6 @@
 import streamlit as st
 import random
-from dynamodb import check_topic_has_references, get_entries, create_question, update_question, delete_question, create_topic, update_topic, delete_topic
+from dynamodb import DynamoDB
 
 RED = "#FF4B4B"
 GREEN = "#198754"
@@ -10,11 +10,6 @@ def toast(message, status = None):
     if status:
         st.session_state.toast_status = status
     st.session_state.message = message
-
-# result of get_entries is cached and should be cleared after CUD operations so UI has updated data
-def clear_get_entries_cache(entry_type):
-    get_entries.clear(entry_type)
-    print(f"{entry_type.lower()} cache cleared")
 
 # clear question data from state so form does not populate on rerun
 def clear_fields():
@@ -37,7 +32,7 @@ def load_question_to_form(question):
     st.session_state.form_reference_url = question.get("reference_url", "")
     st.session_state.form_topic_id = question.get("topic_id")
 
-def save_question():
+def save_question(dynamodb):
     question = st.session_state.form_question.strip()
     reference_url = st.session_state.form_reference_url.strip()
     topic_id = st.session_state.form_topic_id
@@ -49,17 +44,17 @@ def save_question():
         toast("Topic is required.", "error")
         return
     if st.session_state.editing_id:
-        update_question(st.session_state.editing_id,question,reference_url,topic_id)
+        dynamodb.update_question(st.session_state.editing_id,question,reference_url,topic_id)
         toast("Question updated.")
     else:
-        create_question(question,reference_url,topic_id)
+        dynamodb.create_question(question,reference_url,topic_id)
         toast("Question added.")
-    clear_get_entries_cache("QUESTION")
+    dynamodb.clear_get_entries_cache("QUESTION")
     reset_form()
 
 # pop up warning for deleting a question
 @st.dialog("Delete Question")
-def confirm_delete():
+def confirm_delete(dynamodb):
     st.warning("This will permanently delete the question! Are you sure?")
 
     with st.container(horizontal=True):
@@ -67,10 +62,10 @@ def confirm_delete():
             st.rerun()
 
         if st.button("Delete", type="primary"):
-            delete_question(st.session_state.editing_id)
+            dynamodb.delete_question(st.session_state.editing_id)
             toast("Question deleted.")
             reset_form()
-            clear_get_entries_cache("QUESTION")
+            dynamodb.clear_get_entries_cache("QUESTION")
             st.rerun()
 
 def check_duplicate_topic(topic_map, name, topic_id=None):
@@ -109,7 +104,7 @@ def random_question(questions, topic_map):
 
 # pop up for managing topics
 @st.dialog("Manage Topics")
-def manage_topics(topic_map):
+def manage_topics(dynamodb, topic_map):
     st.subheader("Add Topic", anchor=False)
     new_topic_name = st.text_input("New Topic", autocomplete="off").strip()
     if st.button("Add", type="primary"):
@@ -118,8 +113,8 @@ def manage_topics(topic_map):
         elif check_duplicate_topic(topic_map, new_topic_name):
             toast(f"Topic '{new_topic_name}' already exists.", "error")
         else:
-            create_topic(new_topic_name)
-            clear_get_entries_cache("TOPIC")
+            dynamodb.create_topic(new_topic_name)
+            dynamodb.clear_get_entries_cache("TOPIC")
         st.rerun()
 
     if len(topic_map) == 0 or topic_map is None:
@@ -143,27 +138,29 @@ def manage_topics(topic_map):
             if check_duplicate_topic(topic_map, name, topic_id):
                 toast(f"Topic {name} already exists.", "error")
             else:
-                update_topic(topic_id, name.strip())
+                dynamodb.update_topic(topic_id, name.strip())
                 toast(f"Updated Topic {name}")
-                clear_get_entries_cache("TOPIC")
+                dynamodb.clear_get_entries_cache( "TOPIC")
                 reset_form() # user may be editing a question that used this topic, so just reset everything for simplicity
             st.rerun()
 
         if st.button("Delete"):
-            has_refences, reference_count = check_topic_has_references(topic_id)
+            has_refences, reference_count = dynamodb.topic_has_references(topic_id)
             if(has_refences):
-                toast(f"Topic {name} cannot be deleted because it is referenced by {reference_count} questions.", "error")
+                toast(f"Topic {name} cannot be deleted because it is referenced by {reference_count} question{'s' if reference_count != 1 else ''}.", "error")
             else:
-                delete_topic(topic_id)
+                dynamodb.delete_topic(topic_id)
                 toast(f"Deleted topic {name}")
-                clear_get_entries_cache("TOPIC")
+                dynamodb.clear_get_entries_cache( "TOPIC")
                 clear_topic_field() # if topic was populated before valid deltion, it could linger, so clear this input
             st.rerun()
 
 def main():
+    # fetch a cachable dynamoDB object so it isn't constantly reconstructed
+    dynamodb = DynamoDB.get_dynamodb() 
     # fetch data from dynamoDB, returned as list which is cached by st
-    questions = get_entries("QUESTION") 
-    topics = get_entries("TOPIC")
+    questions = dynamodb.get_entries("QUESTION") 
+    topics = dynamodb.get_entries("TOPIC")
     # map of topic ids to names
     topic_map = {topic["UUID"]: topic["name"] for topic in topics}
 
@@ -195,7 +192,7 @@ def main():
         # add mode
         else:
             st.subheader("Add Question", width="content", anchor=False)
-        st.button("Manage Topics", on_click=manage_topics, args=(topic_map,)) # trailing comma forces tuple for *args pass
+        st.button("Manage Topics", on_click=manage_topics, args=(dynamodb,topic_map,)) # trailing comma forces tuple for *args pass
         
     # the actual form
     with st.form("question_form", enter_to_submit=False):
@@ -213,11 +210,11 @@ def main():
         )
 
         with st.container(horizontal=True):
-            st.form_submit_button("Save", on_click=save_question, type="primary", width="content",disabled=not topics,help="Create a topic first. Questions require a topic." if not topics else None)
+            st.form_submit_button("Save", on_click=save_question,args=(dynamodb,), type="primary", width="content",disabled=not topics,help="Create a topic first. Questions require a topic." if not topics else None)
             st.form_submit_button("Clear Fields", on_click=clear_fields, width="content")
 
             if st.session_state.editing_id:
-                st.form_submit_button("Delete", on_click=confirm_delete, width="content")
+                st.form_submit_button("Delete", on_click=confirm_delete, width="content",args=(dynamodb,))
 
     # Questions section
     with st.container(horizontal=True, vertical_alignment="center", height=48, border=False):
@@ -237,10 +234,10 @@ def main():
     questions.sort(key=lambda question: question["question"].lower())
 
     # useful for debugging, shows each question and its topic name
-    # for question in questions:
-    #     topic_name = topic_map.get(question.get("topic_id"), "Unknown Topic")
-    #     print(f'{question["question"]} | {topic_name}')
-    # print()
+    for question in questions:
+        topic_name = topic_map.get(question.get("topic_id"), f"Unknown Topic {question.get("topic_id")}")
+        print(f'{question["question"]} | {topic_name}')
+    print()
 
     # question button for each question
     for question in questions:

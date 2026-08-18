@@ -71,9 +71,7 @@ class DynamoDB:
         print(f"Updated question {question_id} with topic {topic_id}")
 
     def delete_question(self, question_id):
-        self.table.delete_item(
-            Key={"TYPE": "QUESTION","UUID": question_id}
-        )
+        self.table.delete_item(Key={"TYPE": "QUESTION","UUID": question_id})
         print(f"Deleted question {question_id}")
 
     def create_topic(self, name):
@@ -98,26 +96,6 @@ class DynamoDB:
         )
 
         print(f"Updated topic {topic_id}")
-
-    def topic_has_references(self, topic_id):
-        count = 0
-
-        response = self.table.query(
-            KeyConditionExpression=Key("TYPE").eq("QUESTION"),
-            FilterExpression=Attr("topic_id").eq(topic_id),
-        )
-
-        count += len(response["Items"])
-
-        while "LastEvaluatedKey" in response: # pagination if > 1kb returned
-            response = self.table.query(
-                KeyConditionExpression=Key("TYPE").eq("QUESTION"),
-                FilterExpression=Attr("topic_id").eq(topic_id),
-                ExclusiveStartKey=response["LastEvaluatedKey"],
-            )
-            count += len(response["Items"])
-
-        return count > 0, count
 
     def delete_topic(self, topic_id):
         self.table.delete_item(Key={"TYPE": "TOPIC","UUID": topic_id})

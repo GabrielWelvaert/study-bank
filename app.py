@@ -32,6 +32,7 @@ def load_question_to_form(question):
     st.session_state.form_reference_url = question.get("reference_url", "")
     st.session_state.form_topic_id = question.get("topic_id")
 
+# save or update question from main form
 def save_question(dynamodb):
     question = st.session_state.form_question.strip()
     reference_url = st.session_state.form_reference_url.strip()
@@ -68,6 +69,7 @@ def confirm_delete(dynamodb):
             dynamodb.clear_get_entries_cache("QUESTION")
             st.rerun()
 
+# case insensitive check
 def check_duplicate_topic(topic_map, name, topic_id=None):
     normalized_name = name.casefold()
 
@@ -102,9 +104,13 @@ def random_question(questions, topic_map):
     st.subheader(question['question'], anchor=False)
     st.markdown(f"### Refer: [{question['reference_url']}]({question['reference_url']})")
 
+# returns count of questions that use passed topic_id
+def get_topic_reference_count(questions, topic_id):
+    return sum(question.get("topic_id") == topic_id for question in questions)
+
 # pop up for managing topics
 @st.dialog("Manage Topics")
-def manage_topics(dynamodb, topic_map):
+def manage_topics(dynamodb, topic_map, questions):
     st.subheader("Add Topic", anchor=False)
     new_topic_name = st.text_input("New Topic", autocomplete="off").strip()
     if st.button("Add", type="primary"):
@@ -145,8 +151,8 @@ def manage_topics(dynamodb, topic_map):
             st.rerun()
 
         if st.button("Delete"):
-            has_refences, reference_count = dynamodb.topic_has_references(topic_id)
-            if(has_refences):
+            reference_count = get_topic_reference_count(questions, topic_id)
+            if(reference_count > 0):
                 toast(f"Topic {name} cannot be deleted because it is referenced by {reference_count} question{'s' if reference_count != 1 else ''}.", "error")
             else:
                 dynamodb.delete_topic(topic_id)
@@ -158,7 +164,7 @@ def manage_topics(dynamodb, topic_map):
 def main():
     # fetch a cachable dynamoDB object so it isn't constantly reconstructed
     dynamodb = DynamoDB.get_dynamodb() 
-    # fetch data from dynamoDB, returned as list which is cached by st
+    # all questions and topics are stored in memory and each has its own cache which is invalidated on CUD operations (assumes one user and no external writes to database)
     questions = dynamodb.get_entries("QUESTION") 
     topics = dynamodb.get_entries("TOPIC")
     # map of topic ids to names
@@ -192,7 +198,7 @@ def main():
         # add mode
         else:
             st.subheader("Add Question", width="content", anchor=False)
-        st.button("Manage Topics", on_click=manage_topics, args=(dynamodb,topic_map,)) # trailing comma forces tuple for *args pass
+        st.button("Manage Topics", on_click=manage_topics, args=(dynamodb,topic_map,questions)) # trailing comma forces tuple for *args pass
         
     # the actual form
     with st.form("question_form", enter_to_submit=False):
@@ -234,10 +240,10 @@ def main():
     questions.sort(key=lambda question: question["question"].lower())
 
     # useful for debugging, shows each question and its topic name
-    for question in questions:
-        topic_name = topic_map.get(question.get("topic_id"), f"Unknown Topic {question.get("topic_id")}")
-        print(f'{question["question"]} | {topic_name}')
-    print()
+    # for question in questions:
+    #     topic_name = topic_map.get(question.get("topic_id"), f"Unknown Topic {question.get("topic_id")}")
+    #     print(f'{question["question"]} | {topic_name}')
+    # print()
 
     # question button for each question
     for question in questions:

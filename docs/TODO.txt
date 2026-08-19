@@ -1,5 +1,0 @@
-UI stuff for multi-topic
-
-new behavior:
-- topic deleted -> still not allowed to delete a topic if it has questions, so no need to change this
-- question deleted -> all relationship entries need to be deleted for this question (query the GSI)

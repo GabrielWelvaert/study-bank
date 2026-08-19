@@ -2,6 +2,7 @@ import streamlit as st
 import random
 from dynamodb import DynamoDB
 
+DEBUG_MODE = False
 RED = "#FF4B4B"
 GREEN = "#198754"
 
@@ -11,32 +12,32 @@ def toast(message, status = None):
         st.session_state.toast_status = status
     st.session_state.message = message
 
+def clear_topic_field():
+    st.session_state.form_topic_ids = []
+
 # clear question data from state so form does not populate on rerun
 def clear_fields():
     st.session_state.form_question = ""
     st.session_state.form_reference_url = ""
-    st.session_state.form_topic_id = None
+    clear_topic_field()
 
 # clear fields and go back to Add mode
 def reset_form():
-    st.session_state.editing_id = None
+    st.session_state.form_editing_id = None # the id of the question being edited is essentially a hidden field
     clear_fields()
 
-def clear_topic_field():
-    st.session_state.form_topic_id = None
-
 # place question data into session variable so it will populate form on rerun
-def load_question_to_form(question):
-    st.session_state.editing_id = question["UUID"]
+def load_question_to_form(question, dynamodb):
+    st.session_state.form_editing_id = question["SK"]
     st.session_state.form_question = question["question"]
     st.session_state.form_reference_url = question.get("reference_url", "")
-    st.session_state.form_topic_id = question.get("topic_id")
+    st.session_state.form_topic_ids = dynamodb.get_question_topics(question["SK"])
 
 # save or update question from main form
 def save_question(dynamodb):
     question = st.session_state.form_question.strip()
     reference_url = st.session_state.form_reference_url.strip()
-    topic_id = st.session_state.form_topic_id
+    topic_id = st.session_state.form_topic_ids
 
     if not question:
         toast("Question is required.", "error")
@@ -44,8 +45,8 @@ def save_question(dynamodb):
     if not topic_id:
         toast("Topic is required.", "error")
         return
-    if st.session_state.editing_id:
-        dynamodb.update_question(st.session_state.editing_id,question,reference_url,topic_id)
+    if st.session_state.form_editing_id:
+        dynamodb.update_question(st.session_state.form_editing_id,question,reference_url,topic_id)
         toast("Question updated.")
     else:
         dynamodb.create_question(question,reference_url,topic_id)
@@ -63,7 +64,7 @@ def confirm_delete(dynamodb):
             st.rerun()
 
         if st.button("Delete", type="primary"):
-            dynamodb.delete_question(st.session_state.editing_id)
+            dynamodb.delete_question(st.session_state.form_editing_id)
             toast("Question deleted.")
             reset_form()
             dynamodb.clear_get_entries_cache("QUESTION")
@@ -81,32 +82,46 @@ def check_duplicate_topic(topic_map, name, topic_id=None):
 
 # pop up for viewing a random question 
 @st.dialog("Press Space or click the button for a random question", width="medium")
-def random_question(questions, topic_map):
+def random_question(dynamodb, questions, topic_map):
+    print("random question dialog")
     # custom CSS to hide everything except the question
-    st.html("""<style>[data-testid="stDialog"] { background: #262730 !important;}</style>""")
-
-    selected_topic = st.selectbox("Topic",options=[None] + list(topic_map.keys()),format_func=lambda id: "Any" if id is None else topic_map[id],index=0)
-
-    # fetch a new question with respect to topic choice
+    st.html("""<style>[data-testid="stDialog"] { background: #262730 !important; }</style>""")
+    selected_topics = st.multiselect(
+        "Topics",
+        options=list(topic_map.keys()),
+        format_func=lambda id: topic_map[id],
+    )
+    # fetch a new question with respect to topic choices
     if st.button("Random Question", shortcut="Space"):
         current_id = st.session_state.get("random_question_id")
-        matching_questions = questions if selected_topic is None else [q for q in questions if q["topic_id"] == selected_topic]
-        matching_questions = [q for q in matching_questions if q["UUID"] != current_id]
-        if matching_questions:
-            st.session_state.random_question_id = random.choice(matching_questions)["UUID"]
+        matching_questions = questions
+        if selected_topics:
+            selected_topics = set(selected_topics)
+            matching_questions = [
+                q for q in questions
+                if selected_topics & set(dynamodb.get_question_topics(q["SK"]))
+            ]
 
-    # dont display question until user has specified topic selection
+        matching_questions = [
+            q for q in matching_questions
+            if q["SK"] != current_id
+        ]
+
+        if matching_questions:
+            st.session_state.random_question_id = random.choice(matching_questions)["SK"]
+
+    # dont display question until one has been selected
     if "random_question_id" not in st.session_state:
         return
 
     # displaying question
-    question = next(q for q in questions if q["UUID"] == st.session_state.random_question_id)
-    st.subheader(question['question'], anchor=False)
-    st.markdown(f"### Refer: [{question['reference_url']}]({question['reference_url']})")
+    question = next(
+        q for q in questions
+        if q["SK"] == st.session_state.random_question_id
+    )
 
-# returns count of questions that use passed topic_id
-def get_topic_reference_count(questions, topic_id):
-    return sum(question.get("topic_id") == topic_id for question in questions)
+    st.subheader(question["question"], anchor=False)
+    st.markdown(f"### Refer: [{question['reference_url']}]({question['reference_url']})")
 
 # pop up for managing topics
 @st.dialog("Manage Topics")
@@ -146,32 +161,40 @@ def manage_topics(dynamodb, topic_map, questions):
             else:
                 dynamodb.update_topic(topic_id, name.strip())
                 toast(f"Updated Topic {name}")
-                dynamodb.clear_get_entries_cache( "TOPIC")
+                dynamodb.clear_get_entries_cache("TOPIC")
                 reset_form() # user may be editing a question that used this topic, so just reset everything for simplicity
             st.rerun()
 
         if st.button("Delete"):
-            reference_count = get_topic_reference_count(questions, topic_id)
-            if(reference_count > 0):
-                toast(f"Topic {name} cannot be deleted because it is referenced by {reference_count} question{'s' if reference_count != 1 else ''}.", "error")
+            topic_has_references = dynamodb.check_topic_has_references(topic_id)
+            if(topic_has_references > 0):
+                toast(f"Topic {name} cannot be deleted because it is referenced by at least one question.", "error")
             else:
                 dynamodb.delete_topic(topic_id)
                 toast(f"Deleted topic {name}")
-                dynamodb.clear_get_entries_cache( "TOPIC")
+                dynamodb.clear_get_entries_cache("TOPIC")
                 clear_topic_field() # if topic was populated before valid deltion, it could linger, so clear this input
             st.rerun()
+
+@st.dialog("DEBUG MODE FULL DELETE")
+def confirm_delete_everything(dynamodb):
+    st.warning("This will permanently delete everything!!!")
+    if st.button("DELETE EVERYTHING", type="primary"):
+        dynamodb.delete_everything()
+        st.rerun()
 
 def main():
     # fetch a cachable dynamoDB object so it isn't constantly reconstructed
     dynamodb = DynamoDB.get_dynamodb() 
     # all questions and topics are stored in memory and each has its own cache which is invalidated on CUD operations (assumes one user and no external writes to database)
-    questions = dynamodb.get_entries("QUESTION") 
-    topics = dynamodb.get_entries("TOPIC")
-    # map of topic ids to names
-    topic_map = {topic["UUID"]: topic["name"] for topic in topics}
+    # relationships are not pre-fetched or cached, they are obtained as needed for the UI
+    questions = dynamodb.get_entries("QUESTION") # ie each element is {'PK': 'QUESTION', 'SK': '', 'question': '', 'reference_url': ''}
+    topic_map = {topic["SK"]: topic["name"] for topic in dynamodb.get_entries("TOPIC")} # map of topic ids to names
+    num_questions = len(questions)
+    num_topics = len(topic_map) 
 
-    # we're either in edit mode or add mode. if we have an editing_id, we know we're in edit mode
-    st.session_state.setdefault("editing_id", None)
+    # we're either in edit mode or add mode. if we have an form_editing_id, we know we're in edit mode
+    st.session_state.setdefault("form_editing_id", None)
 
     # toast doesn't accept color argument, so we need a custom css override
     toast_color = GREEN
@@ -189,43 +212,46 @@ def main():
     if message := st.session_state.pop("message", None):
         st.toast(message) # color for this defined in toast_color
 
+    if(DEBUG_MODE):
+        st.button("DELETE EVERYTHING", on_click=confirm_delete_everything, args=(dynamodb,),type="primary")
+
     # Add / Edit Header
     with st.container(horizontal=True, vertical_alignment="center", height=72, border=False):
         # edit mode
-        if st.session_state.editing_id:
+        if st.session_state.form_editing_id:
             st.subheader("Edit Question", width="content", anchor=False)
             st.button("Switch to Add Question", on_click=reset_form, type="primary")
         # add mode
         else:
             st.subheader("Add Question", width="content", anchor=False)
-        st.button("Manage Topics", on_click=manage_topics, args=(dynamodb,topic_map,questions)) # trailing comma forces tuple for *args pass
+        st.button("Manage Topics", on_click=manage_topics, args=(dynamodb,topic_map,questions))
         
     # the actual form
     with st.form("question_form", enter_to_submit=False):
         # question label will display UUID of question in edit mode
-        question_label = f'({st.session_state.editing_id})' if st.session_state.editing_id is not None else ''
+        question_label = f'({st.session_state.form_editing_id})' if st.session_state.form_editing_id is not None else ''
 
         st.text_area(f"Question {question_label}", key="form_question", height=70)
         st.text_input("Reference URL", key="form_reference_url", autocomplete="off")
-        topic_id = st.selectbox(
+        topic_id = st.multiselect(
             "Topic",
             options=list(topic_map.keys()),
             format_func=lambda id: topic_map[id],
-            key="form_topic_id", index=None,
-            help="Create a topic with the Manage Topics button" if not topics else None
+            key="form_topic_ids",
+            help="Create a topic with the Manage Topics button" if num_topics==0 else None
         )
 
         with st.container(horizontal=True):
-            st.form_submit_button("Save", on_click=save_question,args=(dynamodb,), type="primary", width="content",disabled=not topics,help="Create a topic first. Questions require a topic." if not topics else None)
+            st.form_submit_button("Save", on_click=save_question,args=(dynamodb,), type="primary", width="content",disabled=num_topics==0,help="Create a topic first. Questions require a topic." if (num_topics==0) else None)
             st.form_submit_button("Clear Fields", on_click=clear_fields, width="content")
 
-            if st.session_state.editing_id:
+            if st.session_state.form_editing_id:
                 st.form_submit_button("Delete", on_click=confirm_delete, width="content",args=(dynamodb,))
 
     # Questions section
     with st.container(horizontal=True, vertical_alignment="center", height=48, border=False):
-        st.subheader(f"Questions ({len(questions)} total)", anchor=False, width="content")
-        st.button("View Random Question", on_click=random_question,args=(questions, topic_map),disabled=(len(questions)==0),help="No questions found." if (len(questions)==0) else None) 
+        st.subheader(f"Questions ({num_questions} total)", anchor=False, width="content")
+        st.button("View Random Question", on_click=random_question,args=(dynamodb,questions, topic_map),disabled=(num_questions==0),help="No questions found." if (num_questions==0) else None) 
     search = st.text_input("Search",placeholder="Search questions or topics...", autocomplete="off")
 
     if search:
@@ -234,24 +260,36 @@ def main():
             question
             for question in questions
             if search in question["question"].lower()
-            or search in topic_map.get(question.get("topic_id"), "").lower()
+            or any(
+                search in topic_map.get(topic_id, "").lower()
+                for topic_id in dynamodb.get_question_topics(question["SK"])
+            )
         ]
 
     questions.sort(key=lambda question: question["question"].lower())
 
-    # useful for debugging, shows each question and its topic name
-    # for question in questions:
-    #     topic_name = topic_map.get(question.get("topic_id"), f"Unknown Topic {question.get("topic_id")}")
-    #     print(f'{question["question"]} | {topic_name}')
-    # print()
+    # useful for debugging, shows first 5 questions and its topics
+    if(DEBUG_MODE and not(num_questions == 0 and num_topics == 0)):
+        print(f"questions: {questions}")
+        print(f"topics: {topic_map}")
+        for i, question in enumerate(questions):
+            topic_ids = dynamodb.get_question_topics(question["SK"])
+            topic_names = [
+                topic_map.get(topic_id, f"Unknown Topic {topic_id}")
+                for topic_id in topic_ids
+            ]
+            print(f'{question["question"]} | {", ".join(topic_names)}')
+            if i == 9: # limit to 10 questions
+                break
+        print()
 
     # question button for each question
     for question in questions:
         st.button(
             question["question"],
-            key=f"select_{question['UUID']}",
+            key=f"select_{question['SK']}",
             on_click=load_question_to_form,
-            args=(question,),
+            args=(question,dynamodb),
             use_container_width=True,
         )
 

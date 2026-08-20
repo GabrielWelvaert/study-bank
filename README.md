@@ -1,6 +1,6 @@
 # Study Bank
 
-Study Bank is a personal study tool for managing a bank of technical questions that are automatically delivered by email each day. It uses a local Streamlit application for question management and AWS serverless services for storage, scheduling, delivery, and monitoring.
+Study Bank is a personal study tool for managing technical questions organized across customizable topics and delivering a randomized selection by email each day to simulate an interview-style review session. It uses a local Streamlit application for question management and AWS serverless services for storage, scheduling, delivery, and monitoring.
 
 ## Architecture
 

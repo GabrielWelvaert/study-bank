@@ -2,12 +2,19 @@
 
 Study Bank is a personal study tool for managing a bank of technical questions that are automatically delivered by email each day. It uses a local Streamlit application for question management and AWS serverless services for storage, scheduling, delivery, and monitoring.
 
+## Architecture
+
 <p align="center">
-  <img src="./study-bank-architecture.png" width="100%" />
-  <img src="./study-bank-admin-portal.png" width="100%" />
+  <img src="./study-bank-architecture.png" width="85%" />
 </p>
 
-# DynamoDB Schema:
+## Admin Portal
+
+<p align="center">
+  <img src="./study-bank-admin-portal.png" width="70%" />
+</p>
+
+# DynamoDB Schema
 
 ## Question
 - Query on **PK** to retrieve all questions.

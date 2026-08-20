@@ -5,13 +5,13 @@ Study Bank is a personal study tool for managing a bank of technical questions t
 ## Architecture
 
 <p align="center">
-  <img src="./study-bank-architecture.png" width="85%" />
+  <img src="./study-bank-architecture.png" width="100%" />
 </p>
 
 ## Admin Portal
 
 <p align="center">
-  <img src="./study-bank-admin-portal.png" width="70%" />
+  <img src="./study-bank-admin-portal.png" width="80%" />
 </p>
 
 # DynamoDB Schema

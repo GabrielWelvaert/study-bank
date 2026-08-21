@@ -18,7 +18,7 @@ def clear_topic_field():
 # clear question data from state so form does not populate on rerun
 def clear_fields():
     st.session_state.form_question = ""
-    st.session_state.form_reference_url = ""
+    st.session_state.form_reference_urls = ""
     clear_topic_field()
 
 # clear fields and go back to Add mode
@@ -30,13 +30,17 @@ def reset_form():
 def load_question_to_form(question, dynamodb):
     st.session_state.form_editing_id = question["SK"]
     st.session_state.form_question = question["question"]
-    st.session_state.form_reference_url = question.get("reference_url", "")
+    st.session_state.form_reference_urls = "\n".join(question.get("reference_urls", []))
     st.session_state.form_topic_ids = dynamodb.get_question_topics(question["SK"])
 
 # save or update question from main form
 def save_question(dynamodb):
     question = st.session_state.form_question.strip()
-    reference_url = st.session_state.form_reference_url.strip()
+    reference_urls = [
+        url.strip()
+        for url in st.session_state.form_reference_urls.splitlines()
+        if url.strip()
+    ]
     topic_id = st.session_state.form_topic_ids
 
     if not question:
@@ -46,10 +50,10 @@ def save_question(dynamodb):
         toast("Topic is required.", "error")
         return
     if st.session_state.form_editing_id:
-        dynamodb.update_question(st.session_state.form_editing_id,question,reference_url,topic_id)
+        dynamodb.update_question(st.session_state.form_editing_id,question,reference_urls,topic_id)
         toast("Question updated.")
     else:
-        dynamodb.create_question(question,reference_url,topic_id)
+        dynamodb.create_question(question,reference_urls,topic_id)
         toast("Question added.")
     dynamodb.clear_get_entries_cache("QUESTION")
     reset_form()
@@ -121,7 +125,8 @@ def random_question(dynamodb, questions, topic_map):
     )
 
     st.subheader(question["question"], anchor=False)
-    st.markdown(f"### Refer: [{question['reference_url']}]({question['reference_url']})")
+    for url in question["reference_urls"]:
+        st.markdown(f"### Refer: [{url}]({url})")
 
 # pop up for managing topics
 @st.dialog("Manage Topics")
@@ -188,7 +193,7 @@ def main():
     dynamodb = DynamoDB.get_dynamodb() 
     # all questions and topics are stored in memory and each has its own cache which is invalidated on CUD operations (assumes one user and no external writes to database)
     # relationships are not pre-fetched or cached, they are obtained as needed for the UI
-    questions = dynamodb.get_entries("QUESTION") # ie each element is {'PK': 'QUESTION', 'SK': '', 'question': '', 'reference_url': ''}
+    questions = dynamodb.get_entries("QUESTION") # ie each element is {'PK': 'QUESTION', 'SK': '', 'question': '', 'reference_urls': []}
     topic_map = {topic["SK"]: topic["name"] for topic in dynamodb.get_entries("TOPIC")} # map of topic ids to names
     num_questions = len(questions)
     num_topics = len(topic_map) 
@@ -232,7 +237,12 @@ def main():
         question_label = f'({st.session_state.form_editing_id})' if st.session_state.form_editing_id is not None else ''
 
         st.text_area(f"Question {question_label}", key="form_question", height=70)
-        st.text_input("Reference URL", key="form_reference_url", autocomplete="off")
+        st.text_area(
+            "Reference URLs",
+            key="form_reference_urls",
+            placeholder="https://example.com/1\nhttps://example.com/2",
+            height=70
+        )
         topic_id = st.multiselect(
             "Topic",
             options=list(topic_map.keys()),

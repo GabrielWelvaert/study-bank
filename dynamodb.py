@@ -49,7 +49,7 @@ class DynamoDB:
         return [item["PK"].removeprefix("TOPIC#") for item in response["Items"]]
 
     # create a question and its one relationship entry per topic
-    def create_question(self, question, reference_url, topic_ids):
+    def create_question(self, question, reference_urls, topic_ids):
         question_id = self.generate_uuid()
 
         transact_items = [ # atomic transaction
@@ -60,7 +60,9 @@ class DynamoDB:
                         "PK": {"S": "QUESTION"},
                         "SK": {"S": question_id},
                         "question": {"S": question},
-                        "reference_url": {"S": reference_url},
+                        "reference_urls": {
+                            "L": [{"S": url} for url in reference_urls]
+                        },
                     }
                 }
             }
@@ -86,7 +88,7 @@ class DynamoDB:
         print(f"Created question {question_id}")
 
     # update a question and all of its associate relationship entries
-    def update_question(self, question_id, question, reference_url, topic_ids):
+    def update_question(self, question_id, question, reference_urls, topic_ids):
         current_topic_ids = set(self.get_question_topics(question_id))
         new_topic_ids = set(topic_ids)
 
@@ -103,11 +105,13 @@ class DynamoDB:
                     },
                     "UpdateExpression": """
                         SET question = :question,
-                            reference_url = :reference_url
+                            reference_urls = :reference_urls
                     """,
                     "ExpressionAttributeValues": {
                         ":question": {"S": question},
-                        ":reference_url": {"S": reference_url},
+                        ":reference_urls": {
+                            "L": [{"S": url} for url in reference_urls]
+                        },
                     },
                 }
             }

@@ -1,16 +1,16 @@
-import boto3, uuid, sys
+import boto3, uuid, sys, os
 import streamlit as st
 from boto3.dynamodb.conditions import Key, Attr
 
 class DynamoDB:
-    def __init__(self):
-        print("construction")
+    def __init__(self): 
         # Authorization provided through a named local AWS credential profile which uses access keys for an IAM user with the required permissions. (created via `aws configure --profile study-bank` on local machine)
-        self.table_name = "study-bank"
-        self.session = boto3.Session(profile_name=self.table_name,region_name="us-east-1") # high level resource API
+        self.table_name = os.environ["TABLE_NAME"]
+        self.session = boto3.Session(profile_name=os.environ["AWS_PROFILE_NAME"],region_name="us-east-1") # high level resource API
         self.client = self.session.client("dynamodb") # lower level dynamoDB client, for things like transactions
         self.dynamodb = self.session.resource("dynamodb")
         self.table = self.dynamodb.Table(self.table_name)       
+        print(f"Construction of DynamoDB object. Connected to {os.environ["TABLE_NAME"]} as profile {os.environ["AWS_PROFILE_NAME"]} with DEBUG_MODE={os.environ["DEBUG_MODE"]}")
 
     @st.cache_resource # caches an object
     def get_dynamodb():
@@ -22,6 +22,10 @@ class DynamoDB:
     def clear_get_entries_cache(self, entry_type):
         self.get_entries.clear(entry_type)
         print(f"{entry_type.lower()} cache cleared")
+
+    def clear_get_question_topics_cache(self, question_id):
+        self.get_question_topics.clear(question_id)
+        print(f"topic cache cleared for {question_id}")
 
     @st.cache_data # caches return value. returns a list of dicts
     def get_entries(_self, entry_type): # _self tells Streamlit to exclude the DynamoDB object from the cache key, because we only need to distinguish "QUESTION" or "TOPIC"
@@ -40,9 +44,11 @@ class DynamoDB:
         print(f"Fetched & Cached {len(items)} {entry_type.lower()}{'' if len(items) == 1 else 's'}")
         return items
 
-    # returns a list of topic ids. not cached
-    def get_question_topics(self, question_id):
-        response = self.table.query(
+    # returns a list of topic ids assocaited with passed question. cached per question
+    @st.cache_data
+    def get_question_topics(_self, question_id):
+        print(f"Fetched & Cached topics for question {question_id}")
+        response = _self.table.query(
             IndexName="QuestionTopicsIndex",
             KeyConditionExpression=Key("QuestionTopicsIndex_PK").eq(f"QUESTION#{question_id}")
         )
@@ -204,20 +210,22 @@ class DynamoDB:
         print(f"Deleted topic {topic_id}")
 
     # used during development
-    # def delete_everything(self):
-    #     response = self.table.scan(ProjectionExpression="PK, SK")
-    #     with self.table.batch_writer() as batch:
-    #         while True:
-    #             for item in response["Items"]:
-    #                 batch.delete_item(Key={"PK": item["PK"],"SK": item["SK"]})
+    def delete_everything(self):
+        if(os.getenv("DEBUG_MODE", "False").lower() != "true"):
+            return
+        response = self.table.scan(ProjectionExpression="PK, SK")
+        with self.table.batch_writer() as batch:
+            while True:
+                for item in response["Items"]:
+                    batch.delete_item(Key={"PK": item["PK"],"SK": item["SK"]})
 
-    #             if "LastEvaluatedKey" not in response:
-    #                 break
+                if "LastEvaluatedKey" not in response:
+                    break
 
-    #             response = self.table.scan(
-    #                 ProjectionExpression="PK, SK",
-    #                 ExclusiveStartKey=response["LastEvaluatedKey"],
-    #             )
-    #     print(f"{self.table_name} has been fully cleared!")
-    #     self.clear_get_entries_cache("QUESTION")
-    #     self.clear_get_entries_cache("TOPIC")
+                response = self.table.scan(
+                    ProjectionExpression="PK, SK",
+                    ExclusiveStartKey=response["LastEvaluatedKey"],
+                )
+        print(f"{self.table_name} has been fully cleared!")
+        self.clear_get_entries_cache("QUESTION")
+        self.clear_get_entries_cache("TOPIC")

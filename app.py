@@ -1,8 +1,10 @@
 import streamlit as st
-import random
+import random, os
+from dotenv import load_dotenv
+load_dotenv()
 from dynamodb import DynamoDB
 
-DEBUG_MODE = False
+DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() == "true"
 RED = "#FF4B4B"
 GREEN = "#198754"
 QUESTION_MAX_LEN = 1500
@@ -33,6 +35,7 @@ def load_question_to_form(question, dynamodb):
     st.session_state.form_editing_id = question["SK"]
     st.session_state.form_question = question["question"]
     st.session_state.form_reference_urls = "\n".join(question.get("reference_urls", []))
+    print(f"load question to form {question["SK"]}")
     st.session_state.form_topic_ids = dynamodb.get_question_topics(question["SK"])
 
 # save or update question from main form
@@ -58,6 +61,8 @@ def save_question(dynamodb):
         dynamodb.create_question(question,reference_urls,topic_id)
         toast("Question added.")
     dynamodb.clear_get_entries_cache("QUESTION")
+    print(f"save question: {st.session_state.form_editing_id}")
+    dynamodb.clear_get_question_topics_cache(st.session_state.form_editing_id)
     reset_form()
 
 # pop up warning for deleting a question
@@ -265,9 +270,13 @@ def main():
     with st.container(horizontal=True, vertical_alignment="center", height=48, border=False):
         st.subheader(f"Questions ({num_questions} total)", anchor=False, width="content")
         st.button("View Random Question", on_click=random_question,args=(dynamodb,questions, topic_map),disabled=(num_questions==0),help="No questions found." if (num_questions==0) else None) 
-    search = st.text_input("Search",placeholder="Search questions or topics...", autocomplete="off")
 
-    if search:
+    search_key = (st.session_state.get("search") or "").strip()
+    search_label = f"Search" if search_key == "" else f"Search ({search_key})"
+    search = st.text_input(search_label,placeholder="Search questions or topics (3+ characters)...", autocomplete="off",key="search")
+
+    valid_search = search and len(search.strip()) >= 3
+    if valid_search:
         search = search.lower()
         questions = [
             question
@@ -281,20 +290,20 @@ def main():
 
     questions.sort(key=lambda question: question["question"].lower())
 
-    # useful for debugging, shows first 5 questions and its topics
-    if(DEBUG_MODE and not(num_questions == 0 and num_topics == 0)):
-        print(f"questions: {questions}")
-        print(f"topics: {topic_map}")
-        for i, question in enumerate(questions):
-            topic_ids = dynamodb.get_question_topics(question["SK"])
-            topic_names = [
-                topic_map.get(topic_id, f"Unknown Topic {topic_id}")
-                for topic_id in topic_ids
-            ]
-            print(f'{question["question"]} | {", ".join(topic_names)}')
-            if i == 9: # limit to 10 questions
-                break
-        print()
+    # useful for debugging
+    # if(DEBUG_MODE and not(num_questions == 0 and num_topics == 0)):
+    #     print(f"questions: {questions}")
+    #     print(f"topics: {topic_map}")
+    #     for i, question in enumerate(questions):
+    #         topic_ids = dynamodb.get_question_topics(question["SK"])
+    #         topic_names = [
+    #             topic_map.get(topic_id, f"Unknown Topic {topic_id}")
+    #             for topic_id in topic_ids
+    #         ]
+    #         print(f'{question["question"]} | {", ".join(topic_names)}')
+    #         if i == 9: # limit to 10 questions
+    #             break
+    #     print()
 
     # question button for each question
     for question in questions:

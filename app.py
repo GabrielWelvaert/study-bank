@@ -141,6 +141,7 @@ def manage_topics(dynamodb, topic_map, questions):
         else:
             dynamodb.create_topic(new_topic_name)
             dynamodb.clear_get_entries_cache("TOPIC")
+            toast(f"Topic '{new_topic_name}' created")
         st.rerun()
 
     if len(topic_map) == 0 or topic_map is None:
@@ -162,10 +163,10 @@ def manage_topics(dynamodb, topic_map, questions):
         if st.button("Update"):
             name = name.strip()
             if check_duplicate_topic(topic_map, name, topic_id):
-                toast(f"Topic {name} already exists.", "error")
+                toast(f"Topic '{name}' already exists.", "error")
             else:
                 dynamodb.update_topic(topic_id, name.strip())
-                toast(f"Updated Topic {name}")
+                toast(f"Updated Topic '{name}'")
                 dynamodb.clear_get_entries_cache("TOPIC")
                 reset_form() # user may be editing a question that used this topic, so just reset everything for simplicity
             st.rerun()
@@ -173,10 +174,10 @@ def manage_topics(dynamodb, topic_map, questions):
         if st.button("Delete"):
             topic_has_references = dynamodb.check_topic_has_references(topic_id)
             if(topic_has_references > 0):
-                toast(f"Topic {name} cannot be deleted because it is referenced by at least one question.", "error")
+                toast(f"Topic '{name}' cannot be deleted because it is referenced by at least one question.", "error")
             else:
                 dynamodb.delete_topic(topic_id)
-                toast(f"Deleted topic {name}")
+                toast(f"Deleted topic '{name}'")
                 dynamodb.clear_get_entries_cache("TOPIC")
                 clear_topic_field() # if topic was populated before valid deltion, it could linger, so clear this input
             st.rerun()

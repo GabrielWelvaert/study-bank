@@ -101,6 +101,7 @@ def random_question(dynamodb, questions, topic_map):
         "Topics",
         options=list(topic_map.keys()),
         format_func=lambda id: topic_map[id],
+        placeholder="Select topics (matches any selected)"
     )
     # fetch a new question with respect to topic choices
     if st.button("Random Question", shortcut="Space"):

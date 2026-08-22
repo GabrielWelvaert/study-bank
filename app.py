@@ -272,10 +272,10 @@ def main():
         st.button("View Random Question", on_click=random_question,args=(dynamodb,questions, topic_map),disabled=(num_questions==0),help="No questions found." if (num_questions==0) else None) 
 
     search_key = (st.session_state.get("search") or "").strip().lower()
-    search_label = f"Search" if search_key == "" else f"Search ({search_key})"
-    search = st.text_input(search_label,placeholder="Search questions or topics (3+ characters)...", autocomplete="off",key="search")
+    search_label = "Search" if not search_key or len(search_key) < 2 else f"Search ({search_key})"
+    search = st.text_input(search_label,placeholder="Search questions or topics (2+ characters)...", autocomplete="off",key="search")
 
-    valid_search = len(search_key) >= 3
+    valid_search = len(search_key) >= 2
     if valid_search:
         questions = [
             question
@@ -305,16 +305,17 @@ def main():
     #     print()
 
     # question button for each question
-    for question in questions:
-        current_question = question["question"]
-        current_question_len = len(current_question)
-        st.button(
-            label = current_question if current_question_len < QUESTION_BUTTON_MAX_TEXT_LEN else current_question[:QUESTION_BUTTON_MAX_TEXT_LEN] + "...",
-            key=f"select_{question['SK']}",
-            on_click=load_question_to_form,
-            args=(question,dynamodb),
-            use_container_width=True,
-        )
+    with st.container(height=500):
+        for question in questions:
+            current_question = question["question"]
+            current_question_len = len(current_question)
+            st.button(
+                label = current_question if current_question_len < QUESTION_BUTTON_MAX_TEXT_LEN else current_question[:QUESTION_BUTTON_MAX_TEXT_LEN] + "...",
+                key=f"select_{question['SK']}",
+                on_click=load_question_to_form,
+                args=(question,dynamodb),
+                use_container_width=True,
+            )
 
 # python -m streamlit run app.py
 if __name__ == "__main__":

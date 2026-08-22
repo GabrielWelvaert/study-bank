@@ -61,7 +61,6 @@ def save_question(dynamodb):
         dynamodb.create_question(question,reference_urls,topic_id)
         toast("Question added.")
     dynamodb.clear_get_entries_cache("QUESTION")
-    print(f"save question: {st.session_state.form_editing_id}")
     dynamodb.clear_get_question_topics_cache(st.session_state.form_editing_id)
     reset_form()
 

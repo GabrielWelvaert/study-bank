@@ -5,6 +5,8 @@ from dynamodb import DynamoDB
 DEBUG_MODE = False
 RED = "#FF4B4B"
 GREEN = "#198754"
+QUESTION_MAX_LEN = 1500
+QUESTION_BUTTON_MAX_TEXT_LEN = 80
 
 # temporary pop up message
 def toast(message, status = None):
@@ -35,7 +37,7 @@ def load_question_to_form(question, dynamodb):
 
 # save or update question from main form
 def save_question(dynamodb):
-    question = st.session_state.form_question.strip()
+    question = st.session_state.form_question.strip()[:QUESTION_MAX_LEN]
     reference_urls = [
         url.strip()
         for url in st.session_state.form_reference_urls.splitlines()
@@ -296,8 +298,10 @@ def main():
 
     # question button for each question
     for question in questions:
+        current_question = question["question"]
+        current_question_len = len(current_question)
         st.button(
-            question["question"],
+            label = current_question if current_question_len < QUESTION_BUTTON_MAX_TEXT_LEN else current_question[:QUESTION_BUTTON_MAX_TEXT_LEN] + "...",
             key=f"select_{question['SK']}",
             on_click=load_question_to_form,
             args=(question,dynamodb),

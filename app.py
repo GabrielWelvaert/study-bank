@@ -94,7 +94,6 @@ def check_duplicate_topic(topic_map, name, topic_id=None):
 # pop up for viewing a random question 
 @st.dialog("Press Space or click the button for a random question", width="medium")
 def random_question(dynamodb, questions, topic_map):
-    print("random question dialog")
     # custom CSS to hide everything except the question
     st.html("""<style>[data-testid="stDialog"] { background: #262730 !important; }</style>""")
     selected_topics = st.multiselect(

@@ -271,17 +271,16 @@ def main():
         st.subheader(f"Questions ({num_questions} total)", anchor=False, width="content")
         st.button("View Random Question", on_click=random_question,args=(dynamodb,questions, topic_map),disabled=(num_questions==0),help="No questions found." if (num_questions==0) else None) 
 
-    search_key = (st.session_state.get("search") or "").strip()
+    search_key = (st.session_state.get("search") or "").strip().lower()
     search_label = f"Search" if search_key == "" else f"Search ({search_key})"
     search = st.text_input(search_label,placeholder="Search questions or topics (3+ characters)...", autocomplete="off",key="search")
 
-    valid_search = search and len(search.strip()) >= 3
+    valid_search = len(search_key) >= 3
     if valid_search:
-        search = search.lower()
         questions = [
             question
             for question in questions
-            if search in question["question"].lower()
+            if search_key in question["question"].lower()
             or any(
                 search in topic_map.get(topic_id, "").lower()
                 for topic_id in dynamodb.get_question_topics(question["SK"])

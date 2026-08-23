@@ -23,7 +23,9 @@ Study Bank is a personal study tool for organizing technical questions by topic 
   "PK": "QUESTION",
   "SK": "550e8400-e29b-41d4-a716-446655440000",
   "question": "When should you use a relational (SQL) database versus a NoSQL database?",
-  "reference_url": "https://stackoverflow.com/questions",
+  "reference_urls": [
+    "https://stackoverflow.com/questions"
+  ],
 ```
 
 ## Topic
@@ -42,3 +44,13 @@ Study Bank is a personal study tool for organizing technical questions by topic 
     "PK": "TOPIC#6c299eca-860e-4654-8194-fc12e045b696",
     "SK": "QUESTION#550e8400-e29b-41d4-a716-446655440000"
     "QuestionTopicsIndex_PK": "QUESTION#550e8400-e29b-41d4-a716-446655440000"
+```
+
+## AI Question History
+- AI questions are stored with TTL and referenced by Bedrock to help generate novel questions each day.
+```json
+  "PK": "AI_QUESTION#BEHAVIORAL", # or "AI_QUESTION#TECHNICAL"
+  "SK": "3d886e6d-b599-4b68-b71f-d74c9d16c50c",
+  "question": "Tell me about a time you had to prioritize multiple competing tasks.",
+  "ttl": 1788174000
+```

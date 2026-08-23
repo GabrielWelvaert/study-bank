@@ -281,7 +281,7 @@ def main():
             for question in questions
             if search_key in question["question"].lower()
             or any(
-                search in topic_map.get(topic_id, "").lower()
+                search_key in topic_map.get(topic_id, "").lower()
                 for topic_id in dynamodb.get_question_topics(question["SK"])
             )
         ]

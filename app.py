@@ -54,6 +54,9 @@ def save_question(dynamodb):
     if not topic_id:
         toast("Topic is required.", "error")
         return
+    if (url := next((url for url in reference_urls if not url.startswith(("http://", "https://"))), None)) is not None:
+        toast(f"URL '{url}' is invalid.", "error")
+        return
     if st.session_state.form_editing_id:
         dynamodb.update_question(st.session_state.form_editing_id,question,reference_urls,topic_id)
         toast("Question updated.")

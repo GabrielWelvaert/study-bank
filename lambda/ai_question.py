@@ -26,6 +26,13 @@ behavioral_topics = [
 ]
 
 technical_topics = [
+    "programming fundamentals",
+    "object-oriented programming",
+    "design patterns",
+    "code design and maintainability",
+    "asynchronous programming",
+    "error handling",
+    "dependency injection",
     "databases",
     "distributed systems",
     "AWS or cloud architecture",

@@ -48,40 +48,60 @@ def generate_prompts():
     technical_topic = random.choice(technical_topics)
 
     behavioral_prompt = f"""
-    Generate exactly one short behavioral or situational interview question
+    Generate exactly one behavioral or situational interview question
     for a junior-to-mid-level software engineer.
 
     Today's focus area: {behavioral_topic}
 
+    Before writing the question, silently choose one narrow skill or judgment
+    within the focus area to test. The final question must test only that one thing.
+
     Requirements:
-    - The question must primarily test the focus area above
-    - Ask about a specific situation, decision, challenge, or experience
+    - Test exactly one main idea
+    - Ask about one specific situation, decision, challenge, or experience
+    - Use plain, direct language
+    - Prefer concrete situations over abstract concepts
+    - Do not combine multiple questions or multiple objectives
+    - Do not pad the question with interview buzzwords or repetitive language
+    - Avoid vague filler such as "best practices", "future enhancements",
+    "scalable and maintainable", "robust and efficient", or similar phrases
+    - Remove any phrase that does not materially change what is being asked
     - Do not generate a question substantially similar to any recent question below
-    - Do not ask multiple separate questions
     - Return only the question
     - No introduction
     - No explanation
     - No markdown
-    - One or two sentences maximum
+    - The question must be one sentence
     """
 
     technical_prompt = f"""
-    Generate exactly one short technical interview question
+    Generate exactly one technical interview question
     for a junior-to-mid-level software engineer.
 
     Today's technical area: {technical_topic}
 
+    Before writing the question, silently choose one narrow technical concept
+    within the technical area to test. The final question must test only that concept.
+
     Requirements:
-    - The question must primarily test the technical area above
-    - Prefer practical scenarios, tradeoffs, debugging situations, or design decisions
-    - Do not generate a question substantially similar to any recent question below
+    - Test exactly one main technical concept
+    - Ask one specific question with a clear expected direction for the answer
+    - Prefer a concrete scenario, failure, tradeoff, debugging problem, or design decision
+    - Use plain, direct language
+    - Do not combine multiple concepts just to make the question sound sophisticated
+    - Do not ask broad questions like "How would you design..." unless there is a specific constraint or problem to solve
+    - Do not use redundant phrases, buzzwords, or filler
+    - Avoid vague phrases such as "best practices", "future enhancements",
+    "scalable and maintainable", "robust and efficient", "flexible", or similar language
+    - Remove any phrase that does not materially change what is being asked
     - Do not ask the candidate to write code
     - Do not ask multiple separate questions
+    - Do not generate a question substantially similar to any recent question below
     - Return only the question
     - No introduction
     - No explanation
     - No markdown
-    - One or two sentences maximum
+    - The question must be one sentence
     """
 
     return behavioral_prompt, technical_prompt

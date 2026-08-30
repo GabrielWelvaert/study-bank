@@ -27,6 +27,10 @@ class DynamoDB:
         self.get_question_topics.clear(question_id)
         print(f"topic cache cleared for {question_id}")
 
+    def clear_get_topic_questions_cache(self):
+        self.get_topic_questions.clear()
+        print(f"question cache cleared for all topics")
+
     @st.cache_data # caches return value. returns a list of dicts
     def get_entries(_self, entry_type): # _self tells Streamlit to exclude the DynamoDB object from the cache key, because we only need to distinguish "QUESTION" or "TOPIC"
         items = []
@@ -53,6 +57,13 @@ class DynamoDB:
             KeyConditionExpression=Key("QuestionTopicsIndex_PK").eq(f"QUESTION#{question_id}")
         )
         return [item["PK"].removeprefix("TOPIC#") for item in response["Items"]]
+
+    # returns a list of question ids associated with passed topic.
+    @st.cache_data
+    def get_topic_questions(_self, topic_id):
+        print(f"Fetched & Cached questions for topic {topic_id}")
+        response = _self.table.query(KeyConditionExpression=Key("PK").eq(f"TOPIC#{topic_id}"))
+        return [item["SK"].removeprefix("QUESTION#") for item in response["Items"]]
 
     # create a question and its one relationship entry per topic
     def create_question(self, question, reference_urls, topic_ids):

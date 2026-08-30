@@ -30,6 +30,16 @@ def reset_form():
     st.session_state.form_editing_id = None # the id of the question being edited is essentially a hidden field
     clear_fields()
 
+@st.cache_data
+def get_questions_map(questions):
+    return {
+        q["SK"]: {
+            "question": q["question"],
+            "reference_urls": q["reference_urls"],
+        }
+        for q in questions
+    }
+
 # place question data into session variable so it will populate form on rerun
 def load_question_to_form(question, dynamodb):
     st.session_state.form_editing_id = question["SK"]
@@ -64,7 +74,9 @@ def save_question(dynamodb):
         dynamodb.create_question(question,reference_urls,topic_id)
         toast("Question added.")
     dynamodb.clear_get_entries_cache("QUESTION")
+    get_questions_map.clear()
     dynamodb.clear_get_question_topics_cache(st.session_state.form_editing_id)
+    dynamodb.clear_get_topic_questions_cache()
     reset_form()
 
 # pop up warning for deleting a question
@@ -81,6 +93,8 @@ def confirm_delete(dynamodb):
             toast("Question deleted.")
             reset_form()
             dynamodb.clear_get_entries_cache("QUESTION")
+            dynamodb.clear_get_topic_questions_cache()
+            get_questions_map.clear()
             st.rerun()
 
 # case insensitive check
@@ -93,9 +107,14 @@ def check_duplicate_topic(topic_map, name, topic_id=None):
         for existing_id, existing_name in topic_map.items()
     )
 
+def handle_random_question(dynamodb, questions, topic_map):
+    st.session_state.random_question_id = None # reset so we don't see the question from last time
+    random_question(dynamodb, questions, topic_map)
+
 # pop up for viewing a random question 
 @st.dialog("Press Space or click the button for a random question", width="medium")
 def random_question(dynamodb, questions, topic_map):
+    questions_map = get_questions_map(questions)
     # custom CSS to hide everything except the question
     st.html("""<style>[data-testid="stDialog"] { background: #262730 !important; }</style>""")
     selected_topics = st.multiselect(
@@ -106,40 +125,33 @@ def random_question(dynamodb, questions, topic_map):
     )
     # fetch a new question with respect to topic choices
     if st.button("Random Question", shortcut="Space"):
-        current_id = st.session_state.get("random_question_id")
-        matching_questions = questions
         if selected_topics:
-            selected_topics = set(selected_topics)
-            matching_questions = [
-                q for q in questions
-                if selected_topics & set(dynamodb.get_question_topics(q["SK"]))
-            ]
+            matching_question_ids = set()
+            for topic_id in selected_topics:
+                matching_question_ids.update(dynamodb.get_topic_questions(topic_id))
+        else:
+            matching_question_ids = set(questions_map.keys())
 
-        matching_questions = [
-            q for q in matching_questions
-            if q["SK"] != current_id
-        ]
+        matching_question_ids.discard(st.session_state.get("random_question_id"))
 
-        if matching_questions:
-            st.session_state.random_question_id = random.choice(matching_questions)["SK"]
+        if not matching_question_ids:
+            st.toast("No matching questions!")
+            return
 
-    # dont display question until one has been selected
-    if "random_question_id" not in st.session_state:
+        st.session_state.random_question_id = random.choice(list(matching_question_ids))
+        
+    # dont display question until one has been selected (user presesd the button)
+    if st.session_state.random_question_id is None:
         return
 
-    # displaying question
-    question = next(
-        q for q in questions
-        if q["SK"] == st.session_state.random_question_id
-    )
-
+    question = questions_map[st.session_state.random_question_id]
     st.subheader(question["question"], anchor=False)
     for url in question["reference_urls"]:
         st.markdown(f"### Refer: [{url}]({url})")
 
 # pop up for managing topics
 @st.dialog("Manage Topics")
-def manage_topics(dynamodb, topic_map, questions):
+def manage_topics(dynamodb, topic_map):
     st.subheader("Add Topic", anchor=False)
     new_topic_name = st.text_input("New Topic", autocomplete="off").strip()
     if st.button("Add", type="primary"):
@@ -153,7 +165,7 @@ def manage_topics(dynamodb, topic_map, questions):
             toast(f"Topic '{new_topic_name}' created")
         st.rerun()
 
-    if len(topic_map) == 0 or topic_map is None:
+    if not topic_map or len(topic_map) == 0:
         return
 
     st.divider()
@@ -239,7 +251,7 @@ def main():
         # add mode
         else:
             st.subheader("Add Question", width="content", anchor=False)
-        st.button("Manage Topics", on_click=manage_topics, args=(dynamodb,topic_map,questions))
+        st.button("Manage Topics", on_click=manage_topics, args=(dynamodb,topic_map))
         
     # the actual form
     with st.form("question_form", enter_to_submit=False):
@@ -271,11 +283,29 @@ def main():
     # Questions section
     with st.container(horizontal=True, vertical_alignment="center", height=48, border=False):
         st.subheader(f"Questions ({num_questions} total)", anchor=False, width="content")
-        st.button("View Random Question", on_click=random_question,args=(dynamodb,questions, topic_map),disabled=(num_questions==0),help="No questions found." if (num_questions==0) else None) 
+        st.button("View Random Question", on_click=handle_random_question,args=(dynamodb,questions, topic_map),disabled=(num_questions==0),help="No questions found." if (num_questions==0) else None) 
 
     search_key = (st.session_state.get("search") or "").strip().lower()
     search_label = "Search" if not search_key or len(search_key) < 2 else f"Search ({search_key})"
-    search = st.text_input(search_label,placeholder="Search questions or topics (2+ characters)...", autocomplete="off",key="search")
+    search = st.text_input(search_label,placeholder="Search questions (2+ characters)...", autocomplete="off",key="search")
+    search_topic_ids = st.multiselect(
+        "Restrict Search To Topic",
+        options=list(topic_map.keys()),
+        format_func=lambda id: topic_map[id],
+        key="search_topic_ids",
+        help="Create a topic with the Manage Topics button" if num_topics==0 else None
+    )
+
+    if search_topic_ids:
+        matching_question_ids = set()
+        for topic_id in search_topic_ids:
+            matching_question_ids.update(dynamodb.get_topic_questions(topic_id))
+
+        questions = [
+            question
+            for question in questions
+            if question["SK"] in matching_question_ids
+        ]
 
     valid_search = len(search_key) >= 2
     if valid_search:
@@ -283,10 +313,6 @@ def main():
             question
             for question in questions
             if search_key in question["question"].lower()
-            or any(
-                search_key in topic_map.get(topic_id, "").lower()
-                for topic_id in dynamodb.get_question_topics(question["SK"])
-            )
         ]
 
     questions.sort(key=lambda question: question["question"].lower())

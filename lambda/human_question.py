@@ -1,8 +1,9 @@
 # this file fetches human-generated questions
-import random
+import random, os
 from boto3.dynamodb.conditions import Key
+HUMAN_QUESTIONS_AMOUNT = int(os.environ["HUMAN_QUESTIONS_AMOUNT"])
 
-def get_human_questions(table, count=3):
+def get_human_questions(table):
     questions = []
 
     response = table.query(
@@ -21,5 +22,5 @@ def get_human_questions(table, count=3):
 
     return random.sample(
         questions,
-        min(count, len(questions)),
+        min(HUMAN_QUESTIONS_AMOUNT, len(questions)),
     )

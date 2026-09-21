@@ -75,7 +75,7 @@ def save_question(dynamodb):
         toast("Question added.")
     dynamodb.clear_get_entries_cache("QUESTION")
     get_questions_map.clear()
-    dynamodb.clear_get_question_topics_cache(st.session_state.form_editing_id)
+    dynamodb.clear_get_question_topics_cache(st.session_state.form_editing_id) # if new question, this is clearing topic cache for a None question, which is harmless & accomplishes nothing
     dynamodb.clear_get_topic_questions_cache()
     reset_form()
 

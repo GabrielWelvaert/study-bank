@@ -2,6 +2,7 @@ import os
 import boto3
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from html import escape
 from human_question import get_human_questions
 from ai_question import get_ai_questions, save_ai_questions
 
@@ -27,7 +28,7 @@ def build_email(human_questions, AI_questions):
         )
 
         sections.append(
-            f"{i}. {'<br>'.join(question['question'].splitlines())}<br>"
+            f"{i}. {'<br>'.join(escape(question['question']).splitlines())}<br>"
             f"Refer: {reference_links}"
         )
 

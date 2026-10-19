@@ -32,8 +32,10 @@ def build_email(human_questions, AI_questions):
             f"Refer: {reference_links}"
         )
 
-    sections.append(f"AI Behavioral Question:<br>{AI_questions[0]}")
-    sections.append(f"AI Technical Question:<br>{AI_questions[1]}")
+    sections.append(
+        f"AI {AI_questions['type'].title()} Question:<br>"
+        f"{AI_questions['question']}"
+    )
 
     sections.append("That's all for today. See you tomorrow!")
 

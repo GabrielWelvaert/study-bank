@@ -49,7 +49,7 @@ Study Bank is a personal study tool for organizing technical questions by topic 
 ## AI Question History
 - Recently generated AI questions are stored with TTL and referenced by Bedrock to help generate novel questions each day.
 ```json
-  "PK": "AI_QUESTION#BEHAVIORAL", # or "AI_QUESTION#TECHNICAL"
+  "PK": "AI_QUESTION#BEHAVIORAL", # or "AI_QUESTION#TECHNICAL" or "AI_QUESTION#RESUME" 
   "SK": "3d886e6d-b599-4b68-b71f-d74c9d16c50c",
   "question": "Tell me about a time you had to prioritize multiple competing tasks.",
   "ttl": 1788174000

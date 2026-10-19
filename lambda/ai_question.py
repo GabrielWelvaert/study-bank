@@ -94,7 +94,6 @@ actually appear in the provided resume.
 """
 
 def generate_prompt(question_type):
-    question_type = "RESUME"
     common_requirements = f"""
     Generate exactly one interview question for a junior-to-mid-level
     software engineer.

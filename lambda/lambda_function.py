@@ -37,7 +37,14 @@ def build_email(human_questions, AI_questions):
         f"{AI_questions['question']}"
     )
 
-    sections.append("That's all for today. See you tomorrow!")
+    if AI_questions["answer"]:
+        sections.append("That's all for today. Scroll down to reveal the AI-generated answer to today's AI question. See you tomorrow!")
+        sections.append(
+            "<br>" * 10
+            + f"AI Answer:<br>{AI_questions['answer']}"
+        )
+    else:
+        sections.append("That's all for today. See you tomorrow!")
 
     return "<br><br>".join(sections)
 

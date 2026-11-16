@@ -247,10 +247,31 @@ def get_ai_questions(table):
 
     question = response["output"]["message"]["content"][0]["text"].strip()
 
-    return {
+    result = {
         "type": question_type,
         "question": question,
     }
+
+    if question_type in ("TECHNICAL", "BEHAVIORAL"):
+        response = bedrock.converse(
+            modelId="amazon.nova-pro-v1:0",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{
+                        "text": f"Provide a concise, accurate model answer to this software engineering interview question. Return only the answer:\n\n{question}"
+                    }],
+                }
+            ],
+            inferenceConfig={
+                "maxTokens": 400,
+                "temperature": 0.3,
+            },
+        )
+
+        result["answer"] = response["output"]["message"]["content"][0]["text"].strip()
+
+    return result
 
 
 def save_ai_questions(table, ai_question):

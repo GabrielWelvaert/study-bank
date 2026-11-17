@@ -37,7 +37,7 @@ def build_email(human_questions, AI_questions):
         f"{AI_questions['question']}"
     )
 
-    if AI_questions["answer"]:
+    if AI_questions.get("answer"):
         sections.append("That's all for today. Scroll down to reveal the AI-generated answer to today's AI question. See you tomorrow!")
         sections.append(
             "<br>" * 10
